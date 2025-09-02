@@ -1,126 +1,348 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canjeo de Estampas</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap');
-        body {
-            font-family: 'Comic Neue', cursive;
-            text-align: center;
-            background: url('./imagenes/fondo.jpg') no-repeat center center fixed;
-            background-size: cover;
-            color: white;
-        }
-        .sticker {
-            display: inline-block;
-            margin: 20px;
-            padding: 10px;
-            border-radius: 10px;
-            text-align: center;
-            position: relative;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 15px;
-            animation: glowEffect 2s infinite alternate;
-        }
-        .sticker img {
-            width: 120px;
-            height: 120px;
-            border-radius: 10px;
-            animation: stickerGlow 1.5s infinite alternate;
-        }
-        .sticker button {
-            margin-top: 10px;
-            padding: 5px 10px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .raro { border: 4px solid blue; background-color: #d0e1ff; }
-        .epico { border: 4px solid purple; background-color: #e1c0ff; }
-        .legendario { border: 4px solid orange; background-color: #ffdbac; }
-        .mitico { border: 4px solid red; background-color: #ffc0c0; }
-        .exclusivo { border: 4px solid gold; background-color: #fff7c0; }
-        .superexclusivo { border: 4px solid black; background-color: #ffcc00; animation: superGlow 1.5s infinite alternate; }
-
-        @keyframes glowEffect {
-            0% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
-            100% { box-shadow: 0 0 30px rgba(255, 255, 255, 0.8); }
-        }
-
-        @keyframes stickerGlow {
-            0% { filter: brightness(1); }
-            100% { filter: brightness(1.5); }
-        }
-        
-        @keyframes superGlow {
-            0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-            100% { box-shadow: 0 0 30px rgba(255, 215, 0, 1); }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tabla de Puntos</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Comic+Sans+MS&display=swap');
+    body{
+      font-family:'Comic Sans MS',cursive;
+      text-align:center;
+      background:url('./imagenes/fondo.jpg') no-repeat center center fixed;
+      background-size:cover;
+      color:white;
+    }
+    #fecha{
+      font-size:24px;font-weight:bold;margin-bottom:20px;padding:10px;
+      background:rgba(0,0,0,.5);display:inline-block;border-radius:10px;
+    }
+    h1{font-size:32px;text-shadow:2px 2px 4px black;}
+    .controls{
+      display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:10px;
+    }
+    .toggle{
+      background:rgba(0,0,0,.5);
+      padding:6px 10px;border-radius:999px;font-size:14px;display:inline-flex;align-items:center;gap:6px;
+    }
+    table{
+      width:80%;margin:auto;border-collapse:collapse;
+      background:rgba(255,255,255,.9);color:black;font-size:18px;
+    }
+    th,td{padding:10px;border:2px solid black;text-align:center;}
+    th{background:gold;}
+    .brillo{animation:brillo 1s infinite alternate;}
+    @keyframes brillo{
+      from{ text-shadow:0 0 5px gold,0 0 10px yellow;}
+      to{   text-shadow:0 0 10px gold,0 0 20px yellow;}
+    }
+  </style>
 </head>
 <body>
-    <h1>Canjeo de Estampas</h1>
-    <h2>Estampas del Día</h2>
-    <div id="stickerContainer"></div>
-    <script>
-        function obtenerEstampasDelDia() {
-            return [
-                { id: 1, nombre: "Taco Feliz", costo: 800, img: "./imagenes/taco_feliz.jpeg", rareza: "raro" },
-                { id: 2, nombre: "Pollito Amarillo", costo: 900, img: "./imagenes/pollito_amarillo.png", rareza: "epico" },
-                { id: 3, nombre: "Huevo Tierno", costo: 1000, img: "./imagenes/huevo_tierno.png", rareza: "legendario" },
-                { id: 4, nombre: "Gato Fresa", costo: 1100, img: "./imagenes/gato_fresa.png", rareza: "mitico" },
-                { id: 5, nombre: "Capibara Estrella", costo: 1200, img: "./imagenes/capibara_estrella.jpg", rareza: "exclusivo" },
-                { id: 6, nombre: "Aguacate Kawaii", costo: 1300, img: "./imagenes/aguacate_kawaii.jpg", rareza: "superexclusivo" }
-            ];
+  <h1>Tabla de Puntos</h1>
+  <div id="fecha"></div>
+
+  <div class="controls">
+    <input type="date" id="filtroFecha" onchange="render()"/>
+    <input type="text" id="buscador" placeholder="Buscar alumno..." onkeyup="filtrarTabla()"/>
+    <label class="toggle">
+      <input type="checkbox" id="mostrarTodos" onchange="render()"/>
+      Mostrar todos
+    </label>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Alumno</th>
+        <th>Puntos</th>
+        <th>Rango</th>
+        <th>Recompensas</th>
+      </tr>
+    </thead>
+    <tbody id="tablaPuntos">
+      <tr><td colspan="5">Cargando datos...</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    // ========= Config =========
+    // Tu nueva Sheet: https://docs.google.com/spreadsheets/d/19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s/edit?gid=0
+    const SHEET_ID = "19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s";
+    // Puntos = 0 | Asistencia = 1131375842 | Registro = 1025312588 | Presets = 495888198
+    const GID = "0";
+
+    // ========= Utilidades fecha =========
+    function hoyISO(){
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,"0");
+      const day = String(d.getDate()).padStart(2,"0");
+      return `${y}-${m}-${day}`;
+    }
+    function actualizarCabecera(){
+      const opciones = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
+      const fechaHoy = new Date().toLocaleDateString('es-ES', opciones);
+      document.getElementById("fecha").innerHTML = `📅 Hoy es: <b>${fechaHoy}</b>`;
+    }
+
+    // ========= Rangos / Recompensas =========
+    function obtenerRango(puntos){
+      if(puntos>=90) return "🌈🔥 Gran maestro arcoiris";
+      if(puntos>=80) return "🌈 Heroico arcoiris";
+      if(puntos>=70) return "🟠🔥 Heroico élite";
+      if(puntos>=60) return "🟡 Heroico";
+      if(puntos>=50) return "🔴 Gran Maestro";
+      if(puntos>=40) return "🟠 Maestro";
+      if(puntos>=30) return "🟣 Experto";
+      if(puntos>=20) return "🔵 Avanzado";
+      if(puntos>=10) return "🟢 Trabajador";
+      return "⚪ Sin rango";
+    }
+    function obtenerRecompensas(puntos){
+      const grandes = Math.floor(puntos/30);
+      const pequenas = Math.floor((puntos%30)/10);
+      let r = "✨";
+      for(let i=0;i<grandes;i++) r+="🌟";
+      for(let i=0;i<pequenas;i++) r+="⭐";
+      if(puntos>=70) r+=" 🌌";
+      if(puntos>=90) r+=" 🌈";
+      return r;
+    }
+
+    // ========= Filtro UI =========
+    function filtrarTabla(){
+      const filtroFecha = document.getElementById("filtroFecha").value;
+      const filtroNombre = document.getElementById("buscador").value.toLowerCase().trim();
+      const filas = document.querySelectorAll("#tablaPuntos tr");
+      filas.forEach(fila=>{
+        const fecha = fila.cells[0]?.innerText || "";
+        const nombre = (fila.cells[1]?.innerText || "").toLowerCase();
+        const okFecha = !filtroFecha || fecha===filtroFecha;
+        const okNombre = !filtroNombre || nombre.includes(filtroNombre);
+        fila.style.display = (okFecha && okNombre) ? "" : "none";
+      });
+    }
+
+    // ========= Lectura robusta de Sheets =========
+    async function fetchGViz(){
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(`GViz HTTP ${res.status}`);
+      const text = await res.text();
+      const m = text.match(/setResponse\(([\s\S]+)\)\s*;?$/);
+      if(!m) throw new Error("GViz: respuesta inesperada");
+      return JSON.parse(m[1]);
+    }
+    async function fetchCSV(){
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(`CSV HTTP ${res.status}`);
+      const csv = await res.text();
+      // parseo simple (CSV con comillas)
+      const rows = csv.split(/\r?\n/).map(r=>{
+        const out=[]; let cur=""; let inQ=false;
+        for(let i=0;i<r.length;i++){
+          const ch=r[i], nx=r[i+1];
+          if(ch==='"' && nx==='"'){ cur+='"'; i++; continue; }
+          if(ch==='"'){ inQ=!inQ; continue; }
+          if(ch===',' && !inQ){ out.push(cur); cur=""; continue; }
+          cur+=ch;
+        }
+        out.push(cur);
+        return out;
+      });
+      const cols = rows[0] || [];
+      const data = rows.slice(1).map(r => ({ c: cols.map((_,i)=> ({ v: r[i]??"" })) }));
+      return { table: { cols: cols.map(h=>({label:h})), rows: data } };
+    }
+
+    // ==== Normalización de encabezados de fecha (más tolerante) ====
+    function toISODate(h){
+      if(!h) return null;
+      const s = String(h).trim();
+      // YYYY-MM-DD o YYYY/MM/DD (mes/día pueden venir sin cero)
+      let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+      if(m){
+        const [ , Y, M, D ] = m;
+        return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
+      }
+      // DD-MM-YYYY o DD/MM/YYYY
+      m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+      if(m){
+        const [ , D, M, Y ] = m;
+        return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
+      }
+      // Si viene literalmente "2025-9-1" sin ceros ya quedó cubierto en el primer caso.
+      return null;
+    }
+
+    // Detecta columnas para tablero (Nombre + fechas)
+    function detectarEstructuraTablero(cols){
+      const labels = cols.map(c => (c.label??"").toString().trim());
+
+      // Columna "nombre"
+      let idxNombre = labels.findIndex(h => /^nombre del alumno$/i.test(h));
+      if(idxNombre===-1) idxNombre = labels.findIndex(h => /nombre|alumno|estudiante/i.test(h));
+      if(idxNombre===-1) idxNombre = 0; // fallback
+
+      // Columnas que parecen fechas (varios formatos)
+      const dateCols = [];
+      labels.forEach((h,i)=>{
+        const iso = toISODate(h);
+        if(iso) dateCols.push({ i, label: iso, rawLabel: h });
+      });
+
+      // Quitar duplicados por si dos encabezados equivalen al mismo ISO
+      const seen = new Set();
+      const uniq = [];
+      for(const dc of dateCols){
+        if(seen.has(dc.label)) return;
+        seen.add(dc.label);
+        uniq.push(dc);
+      }
+      return { idxNombre, dateCols: uniq };
+    }
+
+    // Estado en memoria
+    let STATE = {
+      rows: [],
+      cols: [],
+      idxNombre: 0,
+      dateCols: [],
+      activeDate: null
+    };
+
+    function getCell(row, idx){
+      const c = row.c?.[idx];
+      if(!c) return "";
+      return (c.f ?? c.v ?? "").toString().trim();
+    }
+
+    function elegirFechaActiva(){
+      const input = document.getElementById("filtroFecha");
+      const solicitada = input.value;
+      const setInput = (val)=>{ input.value = val; };
+
+      if(STATE.dateCols.some(dc => dc.label===solicitada)){
+        STATE.activeDate = solicitada;
+        return;
+      }
+      if(STATE.dateCols.length){
+        const latest = STATE.dateCols.map(dc=>dc.label).sort().at(-1);
+        STATE.activeDate = latest;
+        setInput(latest);
+        return;
+      }
+      STATE.activeDate = "";
+      setInput("");
+    }
+
+    function render(){
+      const tabla = document.getElementById("tablaPuntos");
+      tabla.innerHTML = "";
+
+      if(!STATE.rows.length){
+        tabla.innerHTML = `<tr><td colspan="5">No hay datos</td></tr>`;
+        return;
+      }
+      elegirFechaActiva();
+
+      if(!STATE.activeDate){
+        tabla.innerHTML = `<tr><td colspan="5">No hay columnas de fecha válidas en la hoja (usa encabezados tipo 2025-09-01 o 01/09/2025).</td></tr>`;
+        return;
+      }
+
+      const idxFechaCol = STATE.dateCols.find(dc => dc.label===STATE.activeDate)?.i;
+      if(idxFechaCol==null){
+        tabla.innerHTML = `<tr><td colspan="5">No se encontró la columna de la fecha seleccionada.</td></tr>`;
+        return;
+      }
+
+      const showAll = document.getElementById("mostrarTodos")?.checked;
+
+      // Construye filas (nombre + puntos del día)
+      const items = [];
+      for(const r of STATE.rows){
+        const nombre = getCell(r, STATE.idxNombre) || "Alumno";
+        if(!nombre) continue;
+        let puntosRaw = getCell(r, idxFechaCol);
+        let puntos = parseInt(String(puntosRaw).replace(/[^\d-]/g,""),10);
+        if(Number.isNaN(puntos)) puntos = 0;
+
+        if(puntos > 0 || showAll){
+          items.push({ fecha: STATE.activeDate, nombre, puntos });
+        }
+      }
+
+      // Ordena por puntos desc, luego nombre
+      items.sort((a,b)=> b.puntos - a.puntos || a.nombre.localeCompare(b.nombre));
+
+      if(items.length===0){
+        const msg = `No hay alumnos para ${STATE.activeDate}.`;
+        tabla.innerHTML = `<tr><td colspan="5">${msg}</td></tr>`;
+        return;
+      }
+
+      for(const {fecha, nombre, puntos} of items){
+        const rango = obtenerRango(puntos);
+        const recompensa = obtenerRecompensas(puntos);
+        tabla.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td>${fecha}</td>
+            <td>${nombre}</td>
+            <td>${puntos}</td>
+            <td class="brillo">${rango}</td>
+            <td class="brillo">${recompensa}</td>
+          </tr>
+        `);
+      }
+
+      // Aplica filtro de texto (por si el usuario ya escribió)
+      filtrarTabla();
+    }
+
+    async function cargar(){
+      actualizarCabecera();
+      document.getElementById("filtroFecha").value = hoyISO();
+
+      const tabla = document.getElementById("tablaPuntos");
+      tabla.innerHTML = `<tr><td colspan="5">Cargando datos...</td></tr>`;
+
+      try{
+        let data;
+        try{
+          const gviz = await fetchGViz();
+          data = gviz;
+        }catch(_){
+          data = await fetchCSV();
         }
 
-        function renderStickers() {
-            const container = document.getElementById("stickerContainer");
-            container.innerHTML = "";
-            let stickers = obtenerEstampasDelDia();
-            stickers.forEach(sticker => {
-                let div = document.createElement("div");
-                div.className = `sticker ${sticker.rareza}`;
-                div.innerHTML = `
-                    <img src="${sticker.img}" alt="${sticker.nombre}"><br>
-                    <strong>${sticker.nombre}</strong><br>
-                    <span style="font-size: 18px; color: black;">${sticker.rareza.toUpperCase()}</span><br>
-                    Costo: ${sticker.costo} puntos<br>
-                    <button onclick="canjear('${sticker.img}', ${sticker.costo})">Canjear</button>
-                `;
-                container.appendChild(div);
-            });
+        const cols = data.table?.cols || [];
+        const rows = data.table?.rows || [];
+        if(!rows.length){
+          tabla.innerHTML = `<tr><td colspan="5">Sin filas en la hoja.</td></tr>`;
+          return;
         }
 
-        function canjear(imagen, costo) {
-            let cantidadPuntos = prompt(`Ingrese la cantidad de puntos para canjear esta estampa (Costo: ${costo} puntos):`);
-            if (cantidadPuntos !== null && !isNaN(cantidadPuntos) && cantidadPuntos.trim() !== "") {
-                cantidadPuntos = parseInt(cantidadPuntos);
-                if (cantidadPuntos >= costo) {
-                    imprimir(imagen);
-                } else {
-                    alert(`Necesitas al menos ${costo} puntos para canjear esta estampa.`);
-                }
-            } else {
-                alert("Entrada no válida. Intente nuevamente.");
-            }
-        }
+        const { idxNombre, dateCols } = detectarEstructuraTablero(cols);
 
-        function imprimir(imagen) {
-            let ventana = window.open("", "_blank");
-            ventana.document.write("<html><head><title>Impresión de Estampas</title><style>");
-            ventana.document.write("@page { size: landscape; margin: 0; }"); // Ajuste para modo horizontal
-            ventana.document.write("body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }");
-            ventana.document.write("img { width: 100%; height: auto; max-height: 100vh; }");
-            ventana.document.write("</style></head><body>");
-            ventana.document.write(`<img src="${imagen}">`);
-            ventana.document.write("</body></html>");
-            ventana.document.close();
-            setTimeout(() => { ventana.print(); ventana.close(); }, 500);
-        }
+        STATE.rows = rows;
+        STATE.cols = cols;
+        STATE.idxNombre = idxNombre;
+        STATE.dateCols = dateCols;
 
-        renderStickers();
-    </script>
+        render();
+
+      }catch(err){
+        console.error(err);
+        tabla.innerHTML = `<tr><td colspan="5">Error al cargar datos. Verifica que la hoja esté visible con enlace o publicada a la web.</td></tr>`;
+      }
+    }
+
+    // Go!
+    cargar();
+  </script>
 </body>
 </html>
