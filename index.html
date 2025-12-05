@@ -1,449 +1,382 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Tabla de Puntos</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Comic+Sans+MS&display=swap');
-    body{
-      font-family:'Comic Sans MS',cursive;
-      text-align:center;
-      background:url('./imagenes/fondo.jpg') no-repeat center center fixed;
-      background-size:cover;
-      color:white;
-    }
-    #fecha{
-      font-size:24px;font-weight:bold;margin-bottom:20px;padding:10px;
-      background:rgba(0,0,0,.5);display:inline-block;border-radius:10px;
-    }
-    h1{font-size:32px;text-shadow:2px 2px 4px black;}
-    .controls{
-      display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:10px;
-    }
-    .toggle{
-      background:rgba(0,0,0,.5);
-      padding:6px 10px;border-radius:999px;font-size:14px;display:inline-flex;align-items:center;gap:6px;
-    }
-    #status{
-      margin-bottom:10px;
-      padding:6px 12px;
-      background:rgba(0,0,0,.55);
-      border-radius:999px;
-      font-size:14px;
-    }
-    table{
-      width:80%;margin:auto;border-collapse:collapse;
-      background:rgba(255,255,255,.9);color:black;font-size:18px;
-    }
-    th,td{padding:10px;border:2px solid black;text-align:center;}
-    th{background:gold;}
-    .brillo{animation:brillo 1s infinite alternate;}
-    @keyframes brillo{
-      from{ text-shadow:0 0 5px gold,0 0 10px yellow;}
-      to{   text-shadow:0 0 10px gold,0 0 20px yellow;}
-    }
-  </style>
-</head>
-<body>
-  <h1>Tabla de Puntos</h1>
-  <div id="fecha"></div>
+<script>
+  // ========= Config =========
+  const SHEET_ID        = "19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s";
+  const GID_PUNTOS      = "0";
+  const GID_ASISTENCIA  = "1131375842";
 
-  <div class="controls">
-    <input type="date" id="filtroFecha" onchange="render()"/>
-    <input type="text" id="buscador" placeholder="Buscar alumno..." onkeyup="filtrarTabla()"/>
-    <label class="toggle">
-      <input type="checkbox" id="mostrarTodos" onchange="render()"/>
-      Mostrar todos (incluye con 0 puntos)
-    </label>
-  </div>
+  function setStatus(t){
+    const el = document.getElementById("status");
+    if(el) el.textContent = t;
+    console.log("[STATUS]", t);
+  }
 
-  <div id="status">Cargando datos…</div>
+  // ========= Utilidades fecha =========
+  function hoyISO(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+  function actualizarCabecera(){
+    const opciones = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
+    const fechaHoy = new Date().toLocaleDateString('es-ES', opciones);
+    document.getElementById("fecha").innerHTML = `📅 Hoy es: <b>${fechaHoy}</b>`;
+  }
 
-  <table>
-    <thead>
-      <tr>
-        <th>Fecha</th>
-        <th>Alumno</th>
-        <th>Asistencia</th>
-        <th>Puntos</th>
-        <th>Trabajó</th>
-        <th>Rango</th>
-        <th>Recompensas</th>
-      </tr>
-    </thead>
-    <tbody id="tablaPuntos">
-      <tr><td colspan="7">Cargando datos...</td></tr>
-    </tbody>
-  </table>
+  // ========= Rangos / Recompensas =========
+  function obtenerRango(puntos){
+    if(puntos>=90) return "🌈🔥 Gran maestro arcoiris";
+    if(puntos>=80) return "🌈 Heroico arcoiris";
+    if(puntos>=70) return "🟠🔥 Heroico élite";
+    if(puntos>=60) return "🟡 Heroico";
+    if(puntos>=50) return "🔴 Gran Maestro";
+    if(puntos>=40) return "🟠 Maestro";
+    if(puntos>=30) return "🟣 Experto";
+    if(puntos>=20) return "🔵 Avanzado";
+    if(puntos>=10) return "🟢 Trabajador";
+    return "⚪ Sin rango";
+  }
+  function obtenerRecompensas(puntos){
+    const grandes = Math.floor(puntos/30);
+    const pequenas = Math.floor((puntos%30)/10);
+    let r = "✨";
+    for(let i=0;i<grandes;i++) r+="🌟";
+    for(let i=0;i<pequenas;i++) r+="⭐";
+    if(puntos>=70) r+=" 🌌";
+    if(puntos>=90) r+=" 🌈";
+    return r;
+  }
 
-  <script>
-    // ========= Config =========
-    // Emilio:
-    // URL: https://docs.google.com/spreadsheets/d/19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s/edit
-    // Puntos: 0 | Asistencia: 1131375842 | Registro: 1025312588 | Presets: 495888198
-    const SHEET_ID        = "19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s";
-    const GID_PUNTOS      = "0";
-    const GID_ASISTENCIA  = "1131375842";
+  // ========= Filtro UI =========
+  function filtrarTabla(){
+    const filtroFecha = document.getElementById("filtroFecha").value;
+    const filtroNombre = document.getElementById("buscador").value.toLowerCase().trim();
+    const filas = document.querySelectorAll("#tablaPuntos tr");
+    filas.forEach(fila=>{
+      const fecha = fila.cells[0]?.innerText || "";
+      const nombre = (fila.cells[1]?.innerText || "").toLowerCase();
+      const okFecha = !filtroFecha || fecha===filtroFecha;
+      const okNombre = !filtroNombre || nombre.includes(filtroNombre);
+      fila.style.display = (okFecha && okNombre) ? "" : "none";
+    });
+  }
 
-    function setStatus(t){
-      const el = document.getElementById("status");
-      if(el) el.textContent = t;
-      console.log("[STATUS]", t);
-    }
+  // ========= Lectura robusta de Sheets =========
+  async function fetchGVizByGid(gid){
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`GViz HTTP ${res.status} (gid=${gid})`);
+    const text = await res.text();
+    const m = text.match(/setResponse\(([\s\S]+)\)\s*;?$/);
+    if(!m) throw new Error("GViz: respuesta inesperada");
+    return JSON.parse(m[1]);
+  }
 
-    // ========= Utilidades fecha =========
-    function hoyISO(){
-      const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,"0");
-      const day = String(d.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
-    }
-    function actualizarCabecera(){
-      const opciones = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
-      const fechaHoy = new Date().toLocaleDateString('es-ES', opciones);
-      document.getElementById("fecha").innerHTML = `📅 Hoy es: <b>${fechaHoy}</b>`;
-    }
-
-    // ========= Rangos / Recompensas =========
-    function obtenerRango(puntos){
-      if(puntos>=90) return "🌈🔥 Gran maestro arcoiris";
-      if(puntos>=80) return "🌈 Heroico arcoiris";
-      if(puntos>=70) return "🟠🔥 Heroico élite";
-      if(puntos>=60) return "🟡 Heroico";
-      if(puntos>=50) return "🔴 Gran Maestro";
-      if(puntos>=40) return "🟠 Maestro";
-      if(puntos>=30) return "🟣 Experto";
-      if(puntos>=20) return "🔵 Avanzado";
-      if(puntos>=10) return "🟢 Trabajador";
-      return "⚪ Sin rango";
-    }
-    function obtenerRecompensas(puntos){
-      const grandes = Math.floor(puntos/30);
-      const pequenas = Math.floor((puntos%30)/10);
-      let r = "✨";
-      for(let i=0;i<grandes;i++) r+="🌟";
-      for(let i=0;i<pequenas;i++) r+="⭐";
-      if(puntos>=70) r+=" 🌌";
-      if(puntos>=90) r+=" 🌈";
-      return r;
-    }
-
-    // ========= Filtro UI =========
-    function filtrarTabla(){
-      const filtroFecha = document.getElementById("filtroFecha").value;
-      const filtroNombre = document.getElementById("buscador").value.toLowerCase().trim();
-      const filas = document.querySelectorAll("#tablaPuntos tr");
-      filas.forEach(fila=>{
-        const fecha = fila.cells[0]?.innerText || "";
-        const nombre = (fila.cells[1]?.innerText || "").toLowerCase();
-        const okFecha = !filtroFecha || fecha===filtroFecha;
-        const okNombre = !filtroNombre || nombre.includes(filtroNombre);
-        fila.style.display = (okFecha && okNombre) ? "" : "none";
-      });
-    }
-
-    // ========= Lectura robusta de Sheets =========
-    async function fetchGVizByGid(gid){
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
-      const res = await fetch(url);
-      if(!res.ok) throw new Error(`GViz HTTP ${res.status} (gid=${gid})`);
-      const text = await res.text();
-      const m = text.match(/setResponse\(([\s\S]+)\)\s*;?$/);
-      if(!m) throw new Error("GViz: respuesta inesperada");
-      return JSON.parse(m[1]);
-    }
-
-    async function fetchCSVByGid(gid){
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
-      const res = await fetch(url);
-      if(!res.ok) throw new Error(`CSV HTTP ${res.status} (gid=${gid})`);
-      const csv = await res.text();
-      // parseo simple (CSV con comillas)
-      const rows = csv.split(/\r?\n/).filter(r=>r.length>0).map(r=>{
-        const out=[]; let cur=""; let inQ=false;
-        for(let i=0;i<r.length;i++){
-          const ch=r[i], nx=r[i+1];
-          if(ch==='"' && nx==='"'){ cur+='"'; i++; continue; }
-          if(ch==='"'){ inQ=!inQ; continue; }
-          if(ch===',' && !inQ){ out.push(cur); cur=""; continue; }
-          cur+=ch;
-        }
-        out.push(cur);
-        return out;
-      });
-      if(!rows.length) return { table:{ cols:[], rows:[] } };
-      const cols = rows[0];
-      const data = rows.slice(1).map(r => ({ c: cols.map((_,i)=> ({ v: r[i]??"" })) }));
-      return { table: { cols: cols.map(h=>({label:h})), rows: data } };
-    }
-
-    // ==== Normalización de encabezados de fecha ====
-    // AHORA: si no coincide con un formato clásico pero tiene NÚMEROS,
-    // también lo aceptamos como "fecha" usando el texto tal cual.
-    function toISODate(h){
-      if(!h) return null;
-      const s = String(h).trim();
-      // YYYY-MM-DD o YYYY/MM/DD
-      let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-      if(m){
-        const [ , Y, M, D ] = m;
-        return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
+  async function fetchCSVByGid(gid){
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`CSV HTTP ${res.status} (gid=${gid})`);
+    const csv = await res.text();
+    const rows = csv.split(/\r?\n/).filter(r=>r.length>0).map(r=>{
+      const out=[]; let cur=""; let inQ=false;
+      for(let i=0;i<r.length;i++){
+        const ch=r[i], nx=r[i+1];
+        if(ch==='"' && nx==='"'){ cur+='"'; i++; continue; }
+        if(ch==='"'){ inQ=!inQ; continue; }
+        if(ch===',' && !inQ){ out.push(cur); cur=""; continue; }
+        cur+=ch;
       }
-      // DD-MM-YYYY o DD/MM/YYYY
-      m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-      if(m){
-        const [ , D, M, Y ] = m;
-        return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
-      }
-      // Si no es un formato clásico pero tiene dígitos (ej. "4 dic", "Día 1", "04-12-25"),
-      // lo usamos tal cual como etiqueta de "fecha".
-      if(/\d/.test(s)) return s;
+      out.push(cur);
+      return out;
+    });
+    if(!rows.length) return { table:{ cols:[], rows:[] } };
+    const cols = rows[0];
+    const data = rows.slice(1).map(r => ({ c: cols.map((_,i)=> ({ v: r[i]??"" })) }));
+    return { table: { cols: cols.map(h=>({label:h})), rows: data } };
+  }
 
-      return null;
+  // ==== Normalización de encabezados de fecha ====
+  // SOLO formatos reales de fecha (nada de "Columna 9")
+  function toISODate(h){
+    if(!h) return null;
+    const s = String(h).trim();
+    // YYYY-MM-DD o YYYY/MM/DD
+    let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if(m){
+      const [ , Y, M, D ] = m;
+      return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
+    }
+    // DD-MM-YYYY o DD/MM/YYYY
+    m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if(m){
+      const [ , D, M, Y ] = m;
+      return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
+    }
+    return null;
+  }
+
+  function getCell(row, idx){
+    const c = row.c?.[idx];
+    if(!c) return "";
+    return (c.f ?? c.v ?? "").toString().trim();
+  }
+
+  // Detecta estructura (Nombre + fechas) usando labels o la primera fila
+  function detectarEstructuraTablero(cols, rows){
+    const rawLabels = cols.map(c => (c.label ?? "").toString().trim());
+
+    // labels tipo "Columna 1", "Columna 2", etc.
+    const isGenericLabel = (s) => /^columna\s+\d+$/i.test(s) || /^column\s+\d+$/i.test(s);
+    const genericCount = rawLabels.filter(isGenericLabel).length;
+
+    const useRowHeader = Array.isArray(rows) && rows.length > 0 &&
+                         genericCount >= Math.max(1, Math.floor(rawLabels.length * 0.6));
+
+    let labels;
+    let dataStart;
+
+    if(useRowHeader){
+      // Usamos la PRIMERA FILA como encabezado real
+      const headerRow = rows[0];
+      labels = cols.map((_, i) => getCell(headerRow, i));
+      dataStart = 1; // alumnos desde la fila 1
+    }else{
+      labels = rawLabels;
+      dataStart = 0;
     }
 
-    // Detecta estructura (Nombre + fechas)
-    function detectarEstructuraTablero(cols){
-      const labels = cols.map(c => (c.label??"").toString().trim());
+    // Columna "nombre"
+    let idxNombre = labels.findIndex(h => /^nombre del alumno$/i.test(h));
+    if(idxNombre === -1) idxNombre = labels.findIndex(h => /nombre|alumno|estudiante/i.test(h));
+    if(idxNombre === -1) idxNombre = 0; // fallback
 
-      // Columna "nombre"
-      let idxNombre = labels.findIndex(h => /^nombre del alumno$/i.test(h));
-      if(idxNombre===-1) idxNombre = labels.findIndex(h => /nombre|alumno|estudiante/i.test(h));
-      if(idxNombre===-1) idxNombre = 0; // fallback
+    const dateCols = [];
 
-      const dateCols = [];
-      labels.forEach((h,i)=>{
-        if(i===idxNombre) return; // no marcar la columna de nombre como fecha
-        const iso = toISODate(h);
-        if(iso) dateCols.push({ i, label: iso, rawLabel: h });
-      });
+    labels.forEach((h, i) => {
+      if(i === idxNombre) return; // no marcar la de nombre como fecha
 
-      // Si aún así no encontró nada, como último recurso toma todas las columnas
-      // excepto la de nombre como "fechas" genéricas:
-      if(!dateCols.length){
-        labels.forEach((h,i)=>{
-          if(i===idxNombre) return;
-          const lab = h || `Columna ${i+1}`;
-          dateCols.push({ i, label: lab, rawLabel: h });
-        });
+      const headerText = (h || rawLabels[i] || `Columna ${i+1}`).toString().trim();
+      const key = toISODate(headerText);
+
+      if(key){
+        dateCols.push({ i, label: key, rawLabel: headerText });
       }
+    });
 
-      return { idxNombre, dateCols };
+    // Si no encontró fechas, mejor no inventar nada raro
+    return { idxNombre, dateCols, dataStart };
+  }
+
+  // Estado global para puntos
+  let STATE = {
+    rows: [],
+    cols: [],
+    idxNombre: 0,
+    dateCols: [],
+    activeDate: null
+  };
+
+  function elegirFechaActiva(){
+    const input = document.getElementById("filtroFecha");
+    const solicitada = input.value;
+    const setInput = (val)=>{ input.value = val; };
+
+    if(STATE.dateCols.some(dc => dc.label===solicitada)){
+      STATE.activeDate = solicitada;
+      return;
     }
-
-    // Estado global para puntos
-    let STATE = {
-      rows: [],
-      cols: [],
-      idxNombre: 0,
-      dateCols: [],
-      activeDate: null
-    };
-
-    function getCell(row, idx){
-      const c = row.c?.[idx];
-      if(!c) return "";
-      return (c.f ?? c.v ?? "").toString().trim();
+    if(STATE.dateCols.length){
+      const latest = STATE.dateCols.map(dc=>dc.label).sort().at(-1);
+      STATE.activeDate = latest;
+      setInput(latest);
+      return;
     }
+    STATE.activeDate = "";
+    setInput("");
+  }
 
-    function elegirFechaActiva(){
-      const input = document.getElementById("filtroFecha");
-      const solicitada = input.value;
-      const setInput = (val)=>{ input.value = val; };
+  // ========= Asistencia =========
+  let ASISTENCIA_MAP = {};
 
-      if(STATE.dateCols.some(dc => dc.label===solicitada)){
-        STATE.activeDate = solicitada;
-        return;
-      }
-      if(STATE.dateCols.length){
-        const latest = STATE.dateCols.map(dc=>dc.label).sort().at(-1);
-        STATE.activeDate = latest;
-        // OJO: si el label no es un formato de fecha HTML, el input se verá vacío,
-        // pero internamente sí usamos "latest".
-        setInput(latest);
-        return;
-      }
-      STATE.activeDate = "";
-      setInput("");
-    }
+  function canonicalName(name){
+    return name
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/\s+/g," ")
+      .trim();
+  }
 
-    // ========= Asistencia =========
-    // asistencia[fechaClave] = Set(nombreCanonico)
-    let ASISTENCIA_MAP = {};
+  function buildAsistenciaMap(data){
+    const cols = data.table?.cols || [];
+    const rows = data.table?.rows || [];
 
-    function canonicalName(name){
-      return name
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-        .replace(/\s+/g," ")
-        .trim();
-    }
+    const estr = detectarEstructuraTablero(cols, rows);
+    const idxNombre = estr.idxNombre;
+    const dateCols  = estr.dateCols;
+    const dataRows  = rows.slice(estr.dataStart); // saltar encabezado
 
-    function buildAsistenciaMap(data){
-      const cols = data.table?.cols || [];
-      const rows = data.table?.rows || [];
-      const { idxNombre, dateCols } = detectarEstructuraTablero(cols);
-      const map = {};
+    const map = {};
 
-      for(const dc of dateCols){
-        const fechaClave = dc.label; // puede ser "2025-12-04" o "Día 1" o "4 dic"
-        const presentes = new Set();
-        for(const r of rows){
-          const nombre = getCell(r, idxNombre) || "";
-          if(!nombre) continue;
-          const c = r.c?.[dc.i];
-          const raw = c ? (c.v ?? c.f ?? "") : "";
-          const s = String(raw).trim();
-          const num = parseInt(s.replace(/[^\d-]/g,""),10);
-          const esUno = (!Number.isNaN(num) && num===1) || s === "1";
-          if(esUno){
-            presentes.add(canonicalName(nombre));
-          }
-        }
-        map[fechaClave] = presentes;
-      }
-      return map;
-    }
+    for(const dc of dateCols){
+      const fechaClave = dc.label; // "2025-09-01", etc.
+      const presentes = new Set();
 
-    function render(){
-      const tabla = document.getElementById("tablaPuntos");
-      tabla.innerHTML = "";
-
-      if(!STATE.rows.length){
-        tabla.innerHTML = `<tr><td colspan="7">No hay datos</td></tr>`;
-        return;
-      }
-      elegirFechaActiva();
-
-      if(!STATE.activeDate){
-        tabla.innerHTML = `<tr><td colspan="7">No se detectaron columnas de fecha en la hoja.</td></tr>`;
-        setStatus("No hay fechas detectadas en la hoja de puntos.");
-        return;
-      }
-
-      const idxFechaCol = STATE.dateCols.find(dc => dc.label===STATE.activeDate)?.i;
-      if(idxFechaCol==null){
-        tabla.innerHTML = `<tr><td colspan="7">No se encontró la columna de la fecha seleccionada.</td></tr>`;
-        setStatus("No se encontró la columna para la fecha seleccionada.");
-        return;
-      }
-
-      const showAll = document.getElementById("mostrarTodos")?.checked;
-      const presentesSet = ASISTENCIA_MAP[STATE.activeDate] || null;
-
-      const items = [];
-      let totalAsisten = 0;
-      let totalTrabajan = 0;
-
-      for(const r of STATE.rows){
-        const nombre = getCell(r, STATE.idxNombre) || "Alumno";
+      for(const r of dataRows){
+        const nombre = getCell(r, idxNombre) || "";
         if(!nombre) continue;
-        const canon = canonicalName(nombre);
 
-        // solo alumnos que asistieron (si tenemos asistencia para esa "fechaClave")
-        const attended = !presentesSet || presentesSet.has(canon);
-        if(!attended) continue;
+        const c = r.c?.[dc.i];
+        const raw = c ? (c.v ?? c.f ?? "") : "";
+        const s   = String(raw).trim();
+        const num = parseInt(s.replace(/[^\d-]/g,""),10);
+        const esUno = (!Number.isNaN(num) && num === 1) || s === "1";
 
-        let puntosRaw = getCell(r, idxFechaCol);
-        let puntos = parseInt(String(puntosRaw).replace(/[^\d-]/g,""),10);
-        if(Number.isNaN(puntos)) puntos = 0;
-
-        if(puntos>0 || showAll){
-          items.push({ fecha: STATE.activeDate, nombre, puntos, attended });
-          totalAsisten++;
-          if(puntos>0) totalTrabajan++;
+        if(esUno){
+          presentes.add(canonicalName(nombre));
         }
       }
 
-      items.sort((a,b)=> b.puntos - a.puntos || a.nombre.localeCompare(b.nombre));
+      map[fechaClave] = presentes;
+    }
 
-      if(items.length===0){
-        const msg = `No hay alumnos con asistencia/puntos para "${STATE.activeDate}".`;
-        tabla.innerHTML = `<tr><td colspan="7">${msg}</td></tr>`;
-        setStatus(msg);
+    return map;
+  }
+
+  function render(){
+    const tabla = document.getElementById("tablaPuntos");
+    tabla.innerHTML = "";
+
+    if(!STATE.rows.length){
+      tabla.innerHTML = `<tr><td colspan="7">No hay datos</td></tr>`;
+      return;
+    }
+    elegirFechaActiva();
+
+    if(!STATE.activeDate){
+      tabla.innerHTML = `<tr><td colspan="7">No se detectaron columnas de fecha en la hoja.</td></tr>`;
+      setStatus("No hay fechas detectadas en la hoja de puntos.");
+      return;
+    }
+
+    const idxFechaCol = STATE.dateCols.find(dc => dc.label===STATE.activeDate)?.i;
+    if(idxFechaCol==null){
+      tabla.innerHTML = `<tr><td colspan="7">No se encontró la columna de la fecha seleccionada.</td></tr>`;
+      setStatus("No se encontró la columna para la fecha seleccionada.");
+      return;
+    }
+
+    const showAll = document.getElementById("mostrarTodos")?.checked;
+    const presentesSet = ASISTENCIA_MAP[STATE.activeDate] || null;
+
+    const items = [];
+    let totalAsisten = 0;
+    let totalTrabajan = 0;
+
+    for(const r of STATE.rows){
+      const nombre = getCell(r, STATE.idxNombre) || "Alumno";
+      if(!nombre) continue;
+      const canon = canonicalName(nombre);
+
+      const attended = !presentesSet || presentesSet.has(canon);
+      if(!attended) continue;
+
+      let puntosRaw = getCell(r, idxFechaCol);
+      let puntos = parseInt(String(puntosRaw).replace(/[^\d-]/g,""),10);
+      if(Number.isNaN(puntos)) puntos = 0;
+
+      if(puntos>0 || showAll){
+        items.push({ fecha: STATE.activeDate, nombre, puntos, attended });
+        totalAsisten++;
+        if(puntos>0) totalTrabajan++;
+      }
+    }
+
+    items.sort((a,b)=> b.puntos - a.puntos || a.nombre.localeCompare(b.nombre));
+
+    if(items.length===0){
+      const msg = `No hay alumnos con asistencia/puntos para ${STATE.activeDate}.`;
+      tabla.innerHTML = `<tr><td colspan="7">${msg}</td></tr>`;
+      setStatus(msg);
+      return;
+    }
+
+    for(const {fecha, nombre, puntos, attended} of items){
+      const rango = obtenerRango(puntos);
+      const recompensa = obtenerRecompensas(puntos);
+      const txtAsist = attended ? "✅ Sí" : "❌ No";
+      const txtTrab  = puntos>0  ? "✅ Sí" : "❌ No";
+
+      tabla.insertAdjacentHTML("beforeend", `
+        <tr>
+          <td>${fecha}</td>
+          <td>${nombre}</td>
+          <td>${txtAsist}</td>
+          <td>${puntos}</td>
+          <td>${txtTrab}</td>
+          <td class="brillo">${rango}</td>
+          <td class="brillo">${recompensa}</td>
+        </tr>
+      `);
+    }
+
+    setStatus(`Asistieron ${totalAsisten} alumnos. De ellos, ${totalTrabajan} trabajaron (tienen puntos > 0).`);
+    filtrarTabla();
+  }
+
+  async function cargar(){
+    actualizarCabecera();
+    document.getElementById("filtroFecha").value = hoyISO();
+
+    const tabla = document.getElementById("tablaPuntos");
+    tabla.innerHTML = `<tr><td colspan="7">Cargando datos...</td></tr>`;
+    setStatus("Cargando puntos y asistencia…");
+
+    try{
+      // 1) Cargar PUNTOS
+      let dataPuntos;
+      try{
+        dataPuntos = await fetchGVizByGid(GID_PUNTOS);
+        setStatus("Puntos cargados vía GViz.");
+      }catch(_){
+        dataPuntos = await fetchCSVByGid(GID_PUNTOS);
+        setStatus("Puntos cargados vía CSV.");
+      }
+
+      const colsP = dataPuntos.table?.cols || [];
+      const rowsP = dataPuntos.table?.rows || [];
+      if(!rowsP.length){
+        tabla.innerHTML = `<tr><td colspan="7">Sin filas en la hoja de puntos.</td></tr>`;
+        setStatus("Sin filas en la hoja de puntos.");
         return;
       }
 
-      for(const {fecha, nombre, puntos, attended} of items){
-        const rango = obtenerRango(puntos);
-        const recompensa = obtenerRecompensas(puntos);
-        const txtAsist = attended ? "✅ Sí" : "❌ No";
-        const txtTrab  = puntos>0  ? "✅ Sí" : "❌ No";
+      const estrP = detectarEstructuraTablero(colsP, rowsP);
+      STATE.rows      = rowsP.slice(estrP.dataStart);
+      STATE.cols      = colsP;
+      STATE.idxNombre = estrP.idxNombre;
+      STATE.dateCols  = estrP.dateCols;
 
-        tabla.insertAdjacentHTML("beforeend", `
-          <tr>
-            <td>${fecha}</td>
-            <td>${nombre}</td>
-            <td>${txtAsist}</td>
-            <td>${puntos}</td>
-            <td>${txtTrab}</td>
-            <td class="brillo">${rango}</td>
-            <td class="brillo">${recompensa}</td>
-          </tr>
-        `);
-      }
-
-      setStatus(`Asistieron ${totalAsisten} alumnos. De ellos, ${totalTrabajan} trabajaron (tienen puntos > 0).`);
-      filtrarTabla();
-    }
-
-    async function cargar(){
-      actualizarCabecera();
-      document.getElementById("filtroFecha").value = hoyISO();
-
-      const tabla = document.getElementById("tablaPuntos");
-      tabla.innerHTML = `<tr><td colspan="7">Cargando datos...</td></tr>`;
-      setStatus("Cargando puntos y asistencia…");
-
+      // 2) Cargar ASISTENCIA
       try{
-        // 1) Cargar PUNTOS
-        let dataPuntos;
-        try{
-          dataPuntos = await fetchGVizByGid(GID_PUNTOS);
-          setStatus("Puntos cargados vía GViz.");
-        }catch(_){
-          dataPuntos = await fetchCSVByGid(GID_PUNTOS);
-          setStatus("Puntos cargados vía CSV.");
-        }
-
-        const colsP = dataPuntos.table?.cols || [];
-        const rowsP = dataPuntos.table?.rows || [];
-        if(!rowsP.length){
-          tabla.innerHTML = `<tr><td colspan="7">Sin filas en la hoja de puntos.</td></tr>`;
-          setStatus("Sin filas en la hoja de puntos.");
-          return;
-        }
-
-        const estrP = detectarEstructuraTablero(colsP);
-        STATE.rows = rowsP;
-        STATE.cols = colsP;
-        STATE.idxNombre = estrP.idxNombre;
-        STATE.dateCols = estrP.dateCols;
-
-        // 2) Cargar ASISTENCIA
-        try{
-          const dataAsis = await fetchGVizByGid(GID_ASISTENCIA);
-          ASISTENCIA_MAP = buildAsistenciaMap(dataAsis);
-          setStatus("Puntos y asistencia cargados correctamente.");
-        }catch(eAsis){
-          console.warn("No se pudo cargar Asistencia", eAsis);
-          ASISTENCIA_MAP = {};
-          setStatus("Puntos cargados, pero no se pudo cargar Asistencia (revisa permisos / gid).");
-        }
-
-        render();
-
-      }catch(err){
-        console.error(err);
-        tabla.innerHTML = `<tr><td colspan="7">Error al cargar datos. Verifica que las hojas estén visibles con enlace o publicadas a la web.</td></tr>`;
-        setStatus("Error al cargar datos (permisos / gid).");
+        const dataAsis = await fetchGVizByGid(GID_ASISTENCIA);
+        ASISTENCIA_MAP = buildAsistenciaMap(dataAsis);
+        setStatus("Puntos y asistencia cargados correctamente.");
+      }catch(eAsis){
+        console.warn("No se pudo cargar Asistencia", eAsis);
+        ASISTENCIA_MAP = {};
+        setStatus("Puntos cargados, pero no se pudo cargar Asistencia (revisa permisos / gid).");
       }
-    }
 
-    // Go!
-    cargar();
-  </script>
-</body>
-</html>
+      render();
+
+    }catch(err){
+      console.error(err);
+      tabla.innerHTML = `<tr><td colspan="7">Error al cargar datos. Verifica que las hojas estén visibles con enlace o publicadas a la web.</td></tr>`;
+      setStatus("Error al cargar datos (permisos / gid).");
+    }
+  }
+
+  // Go!
+  cargar();
+</script>
