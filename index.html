@@ -110,6 +110,7 @@ function hoyISO(){
 function actualizarCabecera(){
   document.getElementById("fecha").innerHTML =
     `📅 Hoy es: <b>${new Date().toLocaleDateString('es-ES',{
+//    weekday:'long',year:'numeric',month:'long',day:'numeric'
       weekday:'long',year:'numeric',month:'long',day:'numeric'
     })}</b>`;
 }
@@ -184,10 +185,7 @@ function headerToISO(h){
     return `${Y}-${String(M).padStart(2,"0")}-${String(D).padStart(2,"0")}`;
   }
 
-  // 4) Meses en texto en español, ej:
-  //    "4 de diciembre de 2025"
-  //    "jueves 4 de dic 2025"
-  //    "diciembre 4, 2025"
+  // 4) Meses en texto en español
   let txt = h.toLowerCase();
   txt = txt.normalize("NFD").replace(/[\u0300-\u036f]/g,""); // quitar acentos
 
@@ -428,8 +426,11 @@ function render(){
   const presentesSet = ASISTENCIA_MAP[STATE.activeDate] || null;
 
   const items=[];
-  let totalAsisten=0;
   let totalTrabajan=0;
+
+  // si hay asistencia, el total de asistentes es el tamaño del set;
+  // si no hay asistencia cargada, luego lo calculamos con items.length
+  let totalAsisten = presentesSet ? presentesSet.size : 0;
 
   for(const r of STATE.rows){
     const nombre = getCell(r, STATE.idxNombre)||"Alumno";
@@ -444,9 +445,13 @@ function render(){
 
     if(puntos>0 || showAll){
       items.push({nombre,puntos,attended});
-      totalAsisten++;
       if(puntos>0) totalTrabajan++;
     }
+  }
+
+  // Si no había asistencia cargada, consideramos asistentes = mostrados
+  if(!presentesSet){
+    totalAsisten = items.length;
   }
 
   items.sort((a,b)=> b.puntos-a.puntos || a.nombre.localeCompare(b.nombre));
