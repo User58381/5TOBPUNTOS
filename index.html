@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tabla de Puntos — Emilio</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Comic+Sans+MS&display=swap');
     body{
-      font-family:'Comic Sans MS',cursive;
+      font-family: "Comic Sans MS","Comic Sans","Comic Neue",cursive;
       text-align:center;
-      background:url('./imagenes/fondo.jpg') no-repeat center center fixed;
+      background:#001428 url('./imagenes/fondo.jpg') no-repeat center center fixed;
       background-size:cover;
       color:white;
       margin:0;
@@ -67,12 +66,12 @@
       max-width:1200px;
       margin:0 auto 24px;
       border-collapse:collapse;
-      background:rgba(255,255,255,.9);
+      background:rgba(255,255,255,.95);
       color:black;
-      font-size:16px;
+      font-size:15px;
     }
     th,td{
-      padding:8px 6px;
+      padding:6px 4px;
       border:2px solid black;
       text-align:center;
     }
@@ -122,8 +121,6 @@
 
   <script>
     // ========= Config =========
-    // URL base:
-    // https://docs.google.com/spreadsheets/d/19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s/edit
     const SHEET_ID        = "19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s";
     const GID_PUNTOS      = "0";          // Hoja de puntos
     const GID_ASISTENCIA  = "1131375842"; // Hoja de asistencia
@@ -197,31 +194,7 @@
       return JSON.parse(m[1]);
     }
 
-    async function fetchCSVByGid(gid){
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
-      const res = await fetch(url);
-      if(!res.ok) throw new Error(`CSV HTTP ${res.status} (gid=${gid})`);
-      const csv = await res.text();
-      const rows = csv.split(/\r?\n/).filter(r=>r.length>0).map(r=>{
-        const out=[]; let cur=""; let inQ=false;
-        for(let i=0;i<r.length;i++){
-          const ch=r[i], nx=r[i+1];
-          if(ch==='"' && nx==='"'){ cur+='"'; i++; continue; }
-          if(ch==='"'){ inQ=!inQ; continue; }
-          if(ch===',' && !inQ){ out.push(cur); cur=""; continue; }
-          cur+=ch;
-        }
-        out.push(cur);
-        return out;
-      });
-      if(!rows.length) return { table:{ cols:[], rows:[] } };
-      const cols = rows[0];
-      const data = rows.slice(1).map(r => ({ c: cols.map((_,i)=> ({ v: r[i]??"" })) }));
-      return { table: { cols: cols.map(h=>({label:h})), rows: data } };
-    }
-
     // ==== Normalización de encabezados de fecha ====
-    // SOLO formatos reales de fecha (nada de "Columna 9")
     function toISODate(h){
       if(!h) return null;
       const s = String(h).trim();
@@ -462,8 +435,10 @@
           dataPuntos = await fetchGVizByGid(GID_PUNTOS);
           setStatus("Puntos cargados vía GViz.");
         }catch(_){
-          dataPuntos = await fetchCSVByGid(GID_PUNTOS);
-          setStatus("Puntos cargados vía CSV.");
+          // Si falla GViz, no hago fallback a CSV aquí para simplificar
+          setStatus("Error al cargar puntos vía GViz (revisa permisos de la hoja).");
+          tabla.innerHTML = `<tr><td colspan="7">No se pudieron cargar los puntos (GViz). Verifica que la hoja sea pública con enlace.</td></tr>`;
+          return;
         }
 
         const colsP = dataPuntos.table?.cols || [];
