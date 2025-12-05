@@ -180,6 +180,8 @@
     }
 
     // ==== Normalización de encabezados de fecha ====
+    // AHORA: si no coincide con un formato clásico pero tiene NÚMEROS,
+    // también lo aceptamos como "fecha" usando el texto tal cual.
     function toISODate(h){
       if(!h) return null;
       const s = String(h).trim();
@@ -195,6 +197,10 @@
         const [ , D, M, Y ] = m;
         return `${Y}-${String(M).padStart(2,'0')}-${String(D).padStart(2,'0')}`;
       }
+      // Si no es un formato clásico pero tiene dígitos (ej. "4 dic", "Día 1", "04-12-25"),
+      // lo usamos tal cual como etiqueta de "fecha".
+      if(/\d/.test(s)) return s;
+
       return null;
     }
 
@@ -209,18 +215,22 @@
 
       const dateCols = [];
       labels.forEach((h,i)=>{
+        if(i===idxNombre) return; // no marcar la columna de nombre como fecha
         const iso = toISODate(h);
         if(iso) dateCols.push({ i, label: iso, rawLabel: h });
       });
 
-      const seen = new Set();
-      const uniq = [];
-      for(const dc of dateCols){
-        if(seen.has(dc.label)) continue;
-        seen.add(dc.label);
-        uniq.push(dc);
+      // Si aún así no encontró nada, como último recurso toma todas las columnas
+      // excepto la de nombre como "fechas" genéricas:
+      if(!dateCols.length){
+        labels.forEach((h,i)=>{
+          if(i===idxNombre) return;
+          const lab = h || `Columna ${i+1}`;
+          dateCols.push({ i, label: lab, rawLabel: h });
+        });
       }
-      return { idxNombre, dateCols: uniq };
+
+      return { idxNombre, dateCols };
     }
 
     // Estado global para puntos
@@ -250,6 +260,8 @@
       if(STATE.dateCols.length){
         const latest = STATE.dateCols.map(dc=>dc.label).sort().at(-1);
         STATE.activeDate = latest;
+        // OJO: si el label no es un formato de fecha HTML, el input se verá vacío,
+        // pero internamente sí usamos "latest".
         setInput(latest);
         return;
       }
@@ -258,7 +270,7 @@
     }
 
     // ========= Asistencia =========
-    // asistencia[fechaISO] = Set(nombreCanonico)
+    // asistencia[fechaClave] = Set(nombreCanonico)
     let ASISTENCIA_MAP = {};
 
     function canonicalName(name){
@@ -276,7 +288,7 @@
       const map = {};
 
       for(const dc of dateCols){
-        const fechaISO = dc.label;
+        const fechaClave = dc.label; // puede ser "2025-12-04" o "Día 1" o "4 dic"
         const presentes = new Set();
         for(const r of rows){
           const nombre = getCell(r, idxNombre) || "";
@@ -290,7 +302,7 @@
             presentes.add(canonicalName(nombre));
           }
         }
-        map[fechaISO] = presentes;
+        map[fechaClave] = presentes;
       }
       return map;
     }
@@ -306,7 +318,7 @@
       elegirFechaActiva();
 
       if(!STATE.activeDate){
-        tabla.innerHTML = `<tr><td colspan="7">No hay columnas de fecha válidas en la hoja (usa encabezados tipo 2025-09-01 o 01/09/2025).</td></tr>`;
+        tabla.innerHTML = `<tr><td colspan="7">No se detectaron columnas de fecha en la hoja.</td></tr>`;
         setStatus("No hay fechas detectadas en la hoja de puntos.");
         return;
       }
@@ -330,7 +342,7 @@
         if(!nombre) continue;
         const canon = canonicalName(nombre);
 
-        // solo alumnos que asistieron (si tenemos asistencia para esa fecha)
+        // solo alumnos que asistieron (si tenemos asistencia para esa "fechaClave")
         const attended = !presentesSet || presentesSet.has(canon);
         if(!attended) continue;
 
@@ -348,7 +360,7 @@
       items.sort((a,b)=> b.puntos - a.puntos || a.nombre.localeCompare(b.nombre));
 
       if(items.length===0){
-        const msg = `No hay alumnos con asistencia/puntos para ${STATE.activeDate}.`;
+        const msg = `No hay alumnos con asistencia/puntos para "${STATE.activeDate}".`;
         tabla.innerHTML = `<tr><td colspan="7">${msg}</td></tr>`;
         setStatus(msg);
         return;
