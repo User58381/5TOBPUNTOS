@@ -92,12 +92,12 @@
 <script>
 /* === CONFIGURACIÓN DE HOJAS === */
 const SHEET_ID         = "19godSKA4Yx9vNHrZpz6ReDeQFovMzlN7X0y6QX-BA6s";
-const GID_PUNTOS       = "0";           // Hoja PUNTOS
-const GID_ASISTENCIA   = "1131375842";  // Hoja ASISTENCIA
-const GID_TRABAJOS     = "1025312588";  // Registro de trabajos (no usado aquí)
-const GID_PRESETS      = "495888198";   // Presets (no usado aquí)
+const GID_PUNTOS       = "0";
+const GID_ASISTENCIA   = "1131375842";
+const GID_TRABAJOS     = "1025312588";
+const GID_PRESETS      = "495888198";
 
-/* === UTILIDADES BÁSICAS === */
+/* === UTILIDADES === */
 function setStatus(t){
   const el=document.getElementById("status");
   if(el) el.textContent=t;
@@ -113,8 +113,6 @@ function actualizarCabecera(){
       weekday:'long',year:'numeric',month:'long',day:'numeric'
     })}</b>`;
 }
-
-/* === RANGOS Y RECOMPENSAS === */
 function obtenerRango(p){
   if(p>=90)return"🌈🔥 Gran maestro arcoiris";
   if(p>=80)return"🌈 Heroico arcoiris";
@@ -136,8 +134,6 @@ function obtenerRecompensas(p){
   if(p>=90)r+=" 🌈";
   return r;
 }
-
-/* === BUSCADOR EN TABLA === */
 function filtrarTabla(){
   const f=document.getElementById("filtroFecha").value;
   const n=(document.getElementById("buscador").value||"").toLowerCase().trim();
@@ -148,13 +144,12 @@ function filtrarTabla(){
   });
 }
 
-/* === PARSEO EXTREMO DE FECHAS A ISO (YYYY-MM-DD) === */
+/* === FECHAS FLEXIBLES === */
 function headerToISO(h){
   if(h===null||h===undefined) return null;
   h=String(h).trim();
   if(!h) return null;
 
-  // 1) Formato GViz tipo Date(2025,11,4)
   let m = h.match(/Date\(\s*(\d{4})\s*,\s*(\d{1,2})\s*,\s*(\d{1,2})\s*\)/i);
   if(m){
     let Y=parseInt(m[1],10);
@@ -163,27 +158,25 @@ function headerToISO(h){
     return `${Y}-${String(M).padStart(2,"0")}-${String(D).padStart(2,"0")}`;
   }
 
-  // 2) YYYY-MM-DD / YYYY/MM/DD / DD-MM-YYYY / etc.
-  m = h.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/); // YYYY-MM-DD
+  m = h.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
   if(m){
     const Y=m[1], M=m[2], D=m[3];
     return `${Y}-${String(M).padStart(2,"0")}-${String(D).padStart(2,"0")}`;
   }
-  m = h.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/); // DD-MM-YY(YY)
+
+  m = h.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if(m){
     let D=m[1], M=m[2], Y=m[3];
     if(Y.length===2) Y=`20${Y}`;
     return `${Y}-${String(M).padStart(2,"0")}-${String(D).padStart(2,"0")}`;
   }
 
-  // 3) Quitar hora tipo "2025-12-04 10:30:00"
   m = h.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\s+\d{1,2}:\d{1,2}(:\d{1,2})?$/);
   if(m){
     const Y=m[1], M=m[2], D=m[3];
     return `${Y}-${String(M).padStart(2,"0")}-${String(D).padStart(2,"0")}`;
   }
 
-  // 4) Meses en texto, español
   let txt = h.toLowerCase();
   txt = txt.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 
@@ -204,7 +197,6 @@ function headerToISO(h){
 
   txt = txt.replace(/^(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\s*,?\s*/,"");
 
-  // "4 de diciembre de 2025"
   m = txt.match(/^(\d{1,2})\s*de\s*([a-zñ]+)\s*de\s*(\d{4})$/);
   if(m){
     let D=parseInt(m[1],10);
@@ -215,7 +207,6 @@ function headerToISO(h){
     }
   }
 
-  // "4 dic 2025"
   m = txt.match(/^(\d{1,2})\s+([a-zñ]+)\s+(\d{4})$/);
   if(m){
     let D=parseInt(m[1],10);
@@ -226,7 +217,6 @@ function headerToISO(h){
     }
   }
 
-  // "diciembre 4 2025"
   m = txt.match(/^([a-zñ]+)\s+(\d{1,2})\s+(\d{4})$/);
   if(m){
     let M=meses[m[1]]||0;
@@ -240,19 +230,16 @@ function headerToISO(h){
   return null;
 }
 
-/* === HELPERS PARA CELDAS === */
 function getCell(row,idx){
   const c=row.c?.[idx];
-  if(!c) return "";
-  const base = (c.f ?? c.v ?? "").toString();
-  return base.trim();
+  return c ? (c.f ?? (typeof c.v==="string"?c.v:String(c.v??""))).toString().trim() : "";
 }
 function getCellRaw(row,idx){
   const c=row.c?.[idx];
   return c ? c.v : null;
 }
 
-/* === DETECCIÓN DE FILA DE ENCABEZADO === */
+/* === DETECCIÓN DE ENCABEZADOS === */
 function detectHeaderRow(data){
   const rows=data.table?.rows||[], cols=data.table?.cols||[];
   if(!rows.length) return {headerRowIdx:-1, labelsFrom:"cols"};
@@ -282,7 +269,6 @@ function detectHeaderRow(data){
   return {headerRowIdx:-1, labelsFrom:"cols"};
 }
 
-/* === DETECCIÓN GENÉRICA DE ESTRUCTURA === */
 function detectarEstructura(data){
   const rows=data.table?.rows||[], cols=data.table?.cols||[];
   const {headerRowIdx, labelsFrom}=detectHeaderRow(data);
@@ -330,7 +316,6 @@ let STATE={
   activeDate:null
 };
 
-// asistencia[fechaISO] = Set(canonicalName)
 let ASISTENCIA_MAP = {};
 
 function canonicalName(name){
@@ -341,7 +326,6 @@ function canonicalName(name){
     .trim();
 }
 
-/* === MAPEO DE ASISTENCIA === */
 function buildAsistenciaMap(data){
   const rows=data.table?.rows||[];
   const det=detectarEstructura(data);
@@ -368,7 +352,6 @@ function buildAsistenciaMap(data){
   return map;
 }
 
-/* === ELECCIÓN DE FECHA ACTIVA (NO MUESTRA FUTURO) === */
 function elegirFechaActiva(){
   const input=document.getElementById("filtroFecha");
   const want=input.value;
@@ -395,7 +378,6 @@ function elegirFechaActiva(){
   input.value="";
 }
 
-/* === RENDER TABLA === */
 function render(){
   const tbody=document.getElementById("tablaPuntos");
   tbody.innerHTML="";
@@ -475,7 +457,7 @@ function render(){
   filtrarTabla();
 }
 
-/* === CSV HELPERS (PUNTOS / ASISTENCIA) === */
+/* === CSV helpers === */
 function parseCSVtoGVizLike(csv){
   const rows=csv.split(/\r?\n/).filter(Boolean).map(r=>{
     const out=[];
@@ -484,7 +466,7 @@ function parseCSVtoGVizLike(csv){
       const ch=r[i],nx=r[i+1];
       if(ch=='"'&&nx=='"'){cur+='"';i++;continue}
       if(ch=='"'){q=!q;continue}
-      if(ch==','&&!q){out.push(cur);cur="";continue}
+      if(ch===','&&!q){out.push(cur);cur="";continue}
       cur+=ch;
     }
     out.push(cur);
@@ -496,31 +478,75 @@ function parseCSVtoGVizLike(csv){
   return {table:{ cols: cols.map(h=>({label:h})), rows:data }};
 }
 
-/* === SOLO CSV PARA SIMPLIFICAR (PUNTOS Y ASISTENCIA) === */
-async function fetchCSV_Puntos(){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID_PUNTOS}`;
+/* === GViz JSONP por gid === */
+function fetchGVizJSONP_ByGid(gid, label){
+  return new Promise((resolve,reject)=>{
+    const tq=encodeURIComponent('select *');
+    const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?gid=${gid}&tqx=out:json&tq=${tq}`;
+    window.google=window.google||{};
+    window.google.visualization=window.google.visualization||{};
+    const old=window.google.visualization.Query?.setResponse;
+    window.google.visualization.Query=window.google.visualization.Query||{};
+    window.google.visualization.Query.setResponse=function(obj){
+      try{
+        if(obj.status && obj.status.toLowerCase()!=='ok'){
+          const e=obj.errors?.[0]?.detailed_message||obj.errors?.[0]?.message||obj.status;
+          reject(new Error(`GViz error (${label}): `+e));
+        } else {
+          resolve(obj);
+        }
+      } finally {
+        if(old) window.google.visualization.Query.setResponse=old;
+      }
+    };
+    const s=document.createElement("script");
+    s.src=url;
+    s.async=true;
+    s.onerror=()=>{
+      if(old) window.google.visualization.Query.setResponse=old;
+      reject(new Error(`GViz JSONP ${label} onerror`));
+    };
+    document.head.appendChild(s);
+    setTimeout(()=>{
+      if(window.google.visualization.Query.setResponse===old) return;
+      window.google.visualization.Query.setResponse=old;
+      reject(new Error(`GViz JSONP ${label} timeout`));
+    },8000);
+  });
+}
+
+/* === CSV / PUB por gid === */
+async function fetchCSV_ByGid(gid, label){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
   const r=await fetch(url,{mode:'cors'});
-  if(!r.ok) throw new Error("CSV Puntos HTTP "+r.status);
+  if(!r.ok) throw new Error(`CSV ${label} HTTP `+r.status);
   return parseCSVtoGVizLike(await r.text());
 }
-async function fetchPubCSV_Puntos(){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${GID_PUNTOS}&single=true&output=csv`;
+async function fetchPubCSV_ByGid(gid, label){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${gid}&single=true&output=csv`;
   const r=await fetch(url,{mode:'cors'});
-  if(!r.ok) throw new Error("PUB CSV Puntos HTTP "+r.status);
+  if(!r.ok) throw new Error(`PUB CSV ${label} HTTP `+r.status);
   return parseCSVtoGVizLike(await r.text());
 }
 
-async function fetchCSV_Asistencia(){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID_ASISTENCIA}`;
-  const r=await fetch(url,{mode:'cors'});
-  if(!r.ok) throw new Error("CSV Asistencia HTTP "+r.status);
-  return parseCSVtoGVizLike(await r.text());
-}
-async function fetchPubCSV_Asistencia(){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${GID_ASISTENCIA}&single=true&output=csv`;
-  const r=await fetch(url,{mode:'cors'});
-  if(!r.ok) throw new Error("PUB CSV Asistencia HTTP "+r.status);
-  return parseCSVtoGVizLike(await r.text());
+async function fetchRobusto(gid, label){
+  try{
+    const data = await fetchGVizJSONP_ByGid(gid, label);
+    setStatus(`${label} cargado vía GViz (JSONP)...`);
+    return data;
+  }catch(e1){
+    console.warn(`GViz ${label} falló → CSV export`, e1);
+    try{
+      const data = await fetchCSV_ByGid(gid, label);
+      setStatus(`${label} cargado vía CSV (export)`);
+      return data;
+    }catch(e2){
+      console.warn(`CSV export ${label} falló → CSV publicar`, e2);
+      const data = await fetchPubCSV_ByGid(gid, label);
+      setStatus(`${label} cargado vía CSV (Publicar en la web)`);
+      return data;
+    }
+  }
 }
 
 /* === CARGA PRINCIPAL === */
@@ -532,16 +558,7 @@ async function cargar(){
   setStatus("Cargando datos de puntos y asistencia…");
 
   try{
-    // --- PUNTOS ---
-    let dataPuntos;
-    try{
-      dataPuntos = await fetchCSV_Puntos();
-      setStatus("Puntos cargados vía CSV (export)");
-    }catch(e2){
-      console.warn("CSV export Puntos falló → CSV publicar", e2);
-      dataPuntos = await fetchPubCSV_Puntos();
-      setStatus("Puntos cargados vía CSV (Publicar en la web)");
-    }
+    const dataPuntos = await fetchRobusto(GID_PUNTOS, "Puntos");
 
     const detP=detectarEstructura(dataPuntos);
     const allRows=dataPuntos.table?.rows||[];
@@ -558,29 +575,20 @@ async function cargar(){
       setStatus("No hay encabezados de fecha válidos en Puntos.");
     }
 
-    // --- ASISTENCIA ---
     try{
-      let dataAsis;
-      try{
-        dataAsis = await fetchCSV_Asistencia();
-        setStatus("Asistencia cargada vía CSV (export)");
-      }catch(eA2){
-        console.warn("CSV export Asistencia falló → CSV publicar", eA2);
-        dataAsis = await fetchPubCSV_Asistencia();
-        setStatus("Asistencia cargada vía CSV (Publicar en la web)");
-      }
+      const dataAsis = await fetchRobusto(GID_ASISTENCIA, "Asistencia");
       ASISTENCIA_MAP = buildAsistenciaMap(dataAsis);
       setStatus("Puntos y asistencia cargados correctamente.");
     }catch(eAsis){
       console.warn("No se pudo cargar Asistencia", eAsis);
       ASISTENCIA_MAP = {};
-      setStatus("Puntos cargados, pero no se pudo cargar Asistencia (revisa permisos o publicar en la web).");
+      setStatus("Puntos cargados, pero no se pudo cargar Asistencia.");
     }
 
     render();
   }catch(err){
     console.error(err);
-    setStatus("Error al cargar: "+err.message+" — Revisa permisos ('Cualquiera con el enlace → Lector') o 'Publicar en la web'.");
+    setStatus("Error al cargar: "+err.message+" — revisa permisos o publicar en la web.");
     tbody.innerHTML=`<tr><td colspan="7">Error de carga. Revisa permisos y gid.</td></tr>`;
   }
 }
